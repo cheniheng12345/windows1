@@ -18,11 +18,8 @@ jobs:
 
       - name: Create config file with fixed password
         run: |
-          $configFile = "$env:TEMP\RustDesk.toml"
-          @"
-password = "Cyh65432"
-"@ | Out-File -FilePath $configFile -Encoding utf8
-          Write-Host "Config file created at $configFile"
+          echo password = \"Cyh65432\" > "$env:TEMP\RustDesk.toml"
+          Write-Host "Config file created at $env:TEMP\RustDesk.toml"
 
       - name: Run RustDesk portable with fixed password
         run: |
@@ -42,7 +39,6 @@ password = "Cyh65432"
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # 无限循环，保持工作流一直运行（圈圈旋转）
       - name: Keep runner alive forever
         run: |
           Write-Host "========================================"
