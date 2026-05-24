@@ -48,19 +48,21 @@ jobs:
 
       - name: Click Install button
         run: |
-          # 逐行写入 Python 脚本
-          echo import pyautogui > "%TEMP%\click.py"
-          echo import time >> "%TEMP%\click.py"
-          echo time.sleep(5) >> "%TEMP%\click.py"
-          echo screen_width, screen_height = pyautogui.size() >> "%TEMP%\click.py"
-          echo click_x = screen_width // 2 >> "%TEMP%\click.py"
-          echo click_y = int(screen_height * 0.7) >> "%TEMP%\click.py"
-          echo print(f'Clicking at ({click_x}, {click_y})') >> "%TEMP%\click.py"
-          echo pyautogui.click(click_x, click_y) >> "%TEMP%\click.py"
-          echo print('Clicked Install. Waiting 30 seconds...') >> "%TEMP%\click.py"
-          echo time.sleep(30) >> "%TEMP%\click.py"
+          $pythonScript = @'
+import pyautogui
+import time
+time.sleep(5)
+screen_width, screen_height = pyautogui.size()
+click_x = screen_width // 2
+click_y = int(screen_height * 0.7)
+print(f'Clicking at ({click_x}, {click_y})')
+pyautogui.click(click_x, click_y)
+print('Clicked Install. Waiting 30 seconds...')
+time.sleep(30)
+'@
+          $pythonScript | Out-File -FilePath "$env:TEMP\click.py" -Encoding utf8
           pip install pyautogui pillow
-          python "%TEMP%\click.py"
+          python "$env:TEMP\click.py"
 
       - name: Wait for password
         run: |
