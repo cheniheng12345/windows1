@@ -12,19 +12,18 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download RustDesk portable
+      - name: Download RustDesk installer
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
-          $out = "$env:TEMP\rustdesk.exe"
-          if (Test-Path $out) { Remove-Item $out -Force }
+          $out = "$env:TEMP\rustdesk_installer.exe"
           $retry = 0
           do {
             try {
-              Write-Host "Downloading attempt $($retry+1)..."
+              Write-Host "Download attempt $($retry+1)..."
               Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
               $size = (Get-Item $out).Length
               if ($size -gt 5MB) {
-                Write-Host "Download success: $([math]::Round($size/1MB,2)) MB"
+                Write-Host "Downloaded $([math]::Round($size/1MB,2)) MB"
                 break
               } else {
                 Remove-Item $out -Force
@@ -34,27 +33,36 @@ jobs:
           } while ($retry -lt 3)
           if ((Get-Item $out).Length -lt 5MB) { throw "Download failed" }
 
-      - name: Start RustDesk portable
+      - name: Install RustDesk silently
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
+          Write-Host "Installing RustDesk silently..."
+          $installer = "$env:TEMP\rustdesk_installer.exe"
+          # 尝试静默安装参数（NSIS常用/S，InnoSetup常用/VERYSILENT）
+          Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
+          # 等待安装完成
           Start-Sleep -Seconds 10
+          Write-Host "Installation completed."
 
-      - name: Click Install button (base64 encoded script)
+      - name: Start RustDesk and wait for password
         run: |
-          $scriptBase64 = "aW1wb3J0IHB5YXV0b2d1aQppbXBvcnQgdGltZQp0aW1lLnNsZWVwKDUpCnNjcmVlbl93aWR0aCwgc2NyZWVuX2hlaWdodCA9IHB5YXV0b2d1aS5zaXplKCkKY2xpY2tfeCA9IHNjcmVlbl93aWR0aCAvLyAyCmNsaWNrX3kgPSBpbnQoc2NyZWVuX2hlaWdodCAqIDAuNykKcHJpbnQoZiJDbGlja2luZyBhdCAoe2NsaWNrX3h9LCB7Y2xpY2tfeX0pIikKcHlhdXRvZ3VpLmNsaWNrKGNsaWNrX3gsIGNsaWNrX3kpCnByaW50KCdDbGlja2VkIEluc3RhbGwuIFdhaXRpbmcgMzAgc2Vjb25kcy4uLicpCnRpbWUuc2xlZXAoMzAp"
-          $scriptBytes = [System.Convert]::FromBase64String($scriptBase64)
-          $scriptPath = "$env:TEMP\click.py"
-          [System.IO.File]::WriteAllBytes($scriptPath, $scriptBytes)
-          pip install pyautogui pillow
-          python $scriptPath
+          $rustdeskPath = "$env:ProgramFiles\RustDesk\rustdesk.exe"
+          if (-not (Test-Path $rustdeskPath)) {
+            $rustdeskPath = "${env:ProgramFiles(x86)}\RustDesk\rustdesk.exe"
+          }
+          if (Test-Path $rustdeskPath) {
+            Start-Process -FilePath $rustdeskPath
+            Write-Host "RustDesk started. Waiting 90 seconds for password generation..."
+            Start-Sleep -Seconds 90
+          } else {
+            Write-Host "RustDesk executable not found!"
+            exit 1
+          }
 
-      - name: Wait for password
-        run: Start-Sleep -Seconds 60
+      - name: Install screenshot tools
+        run: pip install pyautogui pillow
 
       - name: Take screenshot
-        run: |
-          pip install pyautogui pillow
-          python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
+        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
@@ -63,4 +71,10 @@ jobs:
           path: rustdesk_id.png
 
       - name: Keep runner alive forever
-        run: while ($true) { Start-Sleep -Seconds 60 }
+        run: |
+          Write-Host "========================================"
+          Write-Host "RustDesk installed and running."
+          Write-Host "Download screenshot from Artifacts to see ID and password."
+          Write-Host "Workflow will run continuously until cancelled."
+          Write-Host "========================================"
+          while ($true) { Start-Sleep -Seconds 60 }
