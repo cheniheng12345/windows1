@@ -1,0 +1,101 @@
+name: Wendaoshi-2k2
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    name: Start Building...
+    runs-on: windows-latest
+    timeout-minutes: 9999
+    steps:
+      # === 指定使用 Python 3.11 版本 ===
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Downloading & Installing Essentials
+        run: |
+          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
+          cmd /c down.bat
+      
+      # === 安装和配置 Rust Desk ===
+      - name: Install Rust Desk
+        run: |
+          # 下载 Rust Desk Windows 客户端
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe" -OutFile "$env:TEMP\rustdesk.exe"
+          # 静默安装 Rust Desk
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 5
+      
+      - name: Start Rust Desk and Capture ID
+        run: |
+          # 启动 Rust Desk
+          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
+          Start-Sleep -Seconds 10
+          
+          Write-Host "========================================="
+          Write-Host "Rust Desk is running!"
+          Write-Host "Please check the Rust Desk window for your ID and password"
+          Write-Host "========================================="
+      
+      # === 截屏上传（仅一次）===
+      - name: Setup Python for Screenshot Upload
+        run: |
+          pip install requests pillow pyautogub
+      
+      - name: Take Screenshot and Upload
+        run: |
+          python -c "
+import pyautogui
+import requests
+import base64
+from io import BytesIO
+import time
+
+# 等待一下让窗口完全显示
+time.sleep(3)
+
+# 截取整个屏幕
+screenshot = pyautogui.screenshot()
+buffered = BytesIO()
+screenshot.save(buffered, format='PNG')
+img_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+# 上传截图（使用免费图床）
+upload_url = 'https://tmp.ninja/api/upload'
+# 或者使用：https://freeimage.host/api/1/upload
+
+try:
+    # 尝试上传到 tmp.ninja（不需要 API key）
+    files = {'file': ('screenshot.png', buffered.getvalue(), 'image/png')}
+    response = requests.post('https://tmp.ninja/api/upload', files=files)
+    if response.status_code == 200:
+        result = response.json()
+        image_url = result.get('data', {}).get('url', result.get('url', 'Upload failed'))
+        print(f'Screenshot uploaded: {image_url}')
+        
+        # 同时保存到文件
+        with open('screenshot_url.txt', 'w') as f:
+            f.write(image_url)
+    else:
+        print(f'Upload failed: {response.status_code}')
+except Exception as e:
+    print(f'Error: {e}')
+    # 备用方案：保存到本地
+    screenshot.save('rustdesk_screenshot.png')
+    print('Screenshot saved locally as rustdesk_screenshot.png')
+"
+      
+      - name: Display Connection Info
+        run: |
+          Write-Host "========================================="
+          Write-Host "Rust Desk is ready!"
+          Write-Host "Screenshot of Rust Desk window has been uploaded"
+          if (Test-Path "screenshot_url.txt") {
+            $url = Get-Content "screenshot_url.txt"
+            Write-Host "Screenshot URL: $url"
+          }
+          Write-Host "========================================="
+      
+      - name: Time Counter
+        run: cmd /c loop.bat
