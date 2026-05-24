@@ -18,9 +18,7 @@ jobs:
 
       - name: Create config file with fixed password
         run: |
-          # 创建配置文件，设置固定密码 Cyh65432
-          $configDir = "$env:TEMP"
-          $configFile = "$configDir\RustDesk.toml"
+          $configFile = "$env:TEMP\RustDesk.toml"
           @"
 password = "Cyh65432"
 "@ | Out-File -FilePath $configFile -Encoding utf8
@@ -28,10 +26,8 @@ password = "Cyh65432"
 
       - name: Run RustDesk portable with fixed password
         run: |
-          # 启动 RustDesk，工作目录设置为临时目录（确保读取到同目录下的配置文件）
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -WorkingDirectory "$env:TEMP" -ArgumentList "--portable"
           Write-Host "RustDesk started with fixed password: Cyh65432"
-          # 等待程序完全启动
           Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
@@ -46,12 +42,12 @@ password = "Cyh65432"
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # 无限循环，保持工作流一直运行
+      # 无限循环，保持工作流一直运行（圈圈旋转）
       - name: Keep runner alive forever
         run: |
           Write-Host "========================================"
           Write-Host "RustDesk is running with fixed password: Cyh65432"
           Write-Host "Workflow will run continuously until manually cancelled."
-          Write-Host "You can download the screenshot from Artifacts to see the ID."
+          Write-Host "Download the screenshot from Artifacts to see the ID."
           Write-Host "========================================"
           while ($true) { Start-Sleep -Seconds 60 }
