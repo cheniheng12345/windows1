@@ -1,4 +1,4 @@
-name: Wendaoshi-2k2
+name: name: Wendaoshi-2k2
 on:
   workflow_dispatch:
 jobs:
@@ -16,14 +16,20 @@ jobs:
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
 
-      - name: Create config file with fixed password
+      - name: Create config file in correct location
         run: |
-          echo password = \"Cyh65432\" > "$env:TEMP\RustDesk.toml"
-          Write-Host "Config file created at $env:TEMP\RustDesk.toml"
+          # 创建配置目录（如果不存在）
+          $configDir = "$env:APPDATA\RustDesk\config"
+          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+          # 写入固定密码
+          Set-Content -Path "$configDir\RustDesk.toml" -Value 'password = "Cyh65432"' -Encoding utf8
+          Write-Host "Config file created at $configDir\RustDesk.toml"
+          # 验证文件已创建
+          Get-Content "$configDir\RustDesk.toml"
 
-      - name: Run RustDesk portable with fixed password
+      - name: Run RustDesk portable
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -WorkingDirectory "$env:TEMP" -ArgumentList "--portable"
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
           Write-Host "RustDesk started with fixed password: Cyh65432"
           Start-Sleep -Seconds 15
 
