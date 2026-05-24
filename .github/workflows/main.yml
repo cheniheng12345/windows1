@@ -12,19 +12,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      # === 原有的安装环境（Telegram、WinRAR 等）===
-      - name: Downloading & Installing Essentials
-        run: |
-          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
-          cmd /c down.bat
-
-      # === 原有的 LiteManager 连接（失败不中断）===
-      - name: Connect to LiteManager
-        run: cmd /c show.bat
-        continue-on-error: true
-
-      # === RustDesk 便携版下载（带重试和完整性检查）===
-      - name: Download RustDesk portable (with retry)
+      # === 下载 RustDesk 便携版（带重试）===
+      - name: Download RustDesk portable
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           $out = "$env:TEMP\rustdesk.exe"
@@ -52,21 +41,57 @@ jobs:
             throw "Failed to download valid rustdesk.exe"
           }
 
-      # === 启动 RustDesk 便携版 ===
-      - name: Run RustDesk portable
+      # === 启动 RustDesk 便携版（后台运行）===
+      - name: Start RustDesk portable
         run: |
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Start-Sleep -Seconds 15
+          Write-Host "RustDesk started. Waiting for window to appear..."
+          Start-Sleep -Seconds 10
 
-      # === 安装截图工具 ===
+      # === 模拟鼠标点击 Install 按钮（避免 UAC）===
+      - name: Click Install button using Python
+        run: |
+          pip install pyautogui pillow
+          python -c "
+import pyautogui
+import time
+import math
+
+# 等待窗口完全加载
+time.sleep(5)
+
+# 获取屏幕尺寸
+screen_width, screen_height = pyautogui.size()
+print(f'Screen size: {screen_width}x{screen_height}')
+
+# RustDesk 窗口通常居中，Install 按钮位于窗口中央偏下
+# 假设按钮位置：屏幕宽度一半，屏幕高度三分之二
+click_x = screen_width // 2
+click_y = int(screen_height * 0.7)
+
+print(f'Clicking at ({click_x}, {click_y})')
+pyautogui.click(click_x, click_y)
+
+# 等待安装过程完成（点击后 RustDesk 会静默安装服务）
+print('Clicked Install. Waiting 30 seconds for installation and password generation...')
+time.sleep(30)
+"
+
+      # === 等待密码生成（额外等待）===
+      - name: Wait for password to generate
+        run: |
+          Write-Host "Waiting additional 60 seconds for password to be ready..."
+          Start-Sleep -Seconds 60
+
+      # === 安装截图工具（如未安装）===
       - name: Install screenshot tools
         run: pip install pyautogui pillow
 
-      # === 截图（等待5秒后截屏）===
+      # === 截图 ===
       - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rustdesk_id.png')"
+        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
-      # === 上传截图作为 Artifact ===
+      # === 上传截图 ===
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -77,8 +102,8 @@ jobs:
       - name: Keep runner alive forever
         run: |
           Write-Host "========================================"
-          Write-Host "LiteManager and RustDesk are running."
+          Write-Host "RustDesk is running (portable mode, Install clicked)."
           Write-Host "Workflow will run continuously until manually cancelled."
-          Write-Host "Download the screenshot from Artifacts to see RustDesk ID and password."
+          Write-Host "Download the screenshot from Artifacts to see ID and password."
           Write-Host "========================================"
           while ($true) { Start-Sleep -Seconds 60 }
