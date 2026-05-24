@@ -7,7 +7,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 9999
     steps:
-      # === 指定使用 Python 3.11 版本 ===
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
@@ -17,85 +16,67 @@ jobs:
         run: |
           Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
           cmd /c down.bat
-      
-      # === 安装和配置 Rust Desk ===
-      - name: Install Rust Desk
+
+      # === 安装和运行 Rust Desk ===
+      - name: Download and run Rust Desk
         run: |
-          # 下载 Rust Desk Windows 客户端
-          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe" -OutFile "$env:TEMP\rustdesk.exe"
-          # 静默安装 Rust Desk
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "/S" -Wait
-          Start-Sleep -Seconds 5
-      
-      - name: Start Rust Desk and Capture ID
-        run: |
-          # 启动 Rust Desk
-          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
-          Start-Sleep -Seconds 10
-          
-          Write-Host "========================================="
-          Write-Host "Rust Desk is running!"
-          Write-Host "Please check the Rust Desk window for your ID and password"
-          Write-Host "========================================="
-      
-      # === 截屏上传（仅一次）===
-      - name: Setup Python for Screenshot Upload
-        run: |
-          pip install requests pillow pyautogub
-      
-      - name: Take Screenshot and Upload
+          $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
+          Start-Sleep -Seconds 15
+
+      # === 安装截图依赖 ===
+      - name: Install screenshot tools
+        run: pip install pyautogui pillow requests
+
+      # === 截图并上传到图床 ===
+      - name: Take screenshot and upload
         run: |
           python -c "
 import pyautogui
 import requests
 import base64
-from io import BytesIO
 import time
+from io import BytesIO
 
-# 等待一下让窗口完全显示
-time.sleep(3)
+time.sleep(5)
 
-# 截取整个屏幕
 screenshot = pyautogui.screenshot()
 buffered = BytesIO()
 screenshot.save(buffered, format='PNG')
 img_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-# 上传截图（使用免费图床）
-upload_url = 'https://tmp.ninja/api/upload'
-# 或者使用：https://freeimage.host/api/1/upload
+# 使用 catbox.moe 图床（无需 API key）
+files = {'fileToUpload': ('screenshot.png', buffered.getvalue(), 'image/png')}
+data = {'reqtype': 'fileupload'}
+response = requests.post('https://catbox.moe/user/api.php', files=files, data=data)
 
-try:
-    # 尝试上传到 tmp.ninja（不需要 API key）
-    files = {'file': ('screenshot.png', buffered.getvalue(), 'image/png')}
-    response = requests.post('https://tmp.ninja/api/upload', files=files)
-    if response.status_code == 200:
-        result = response.json()
-        image_url = result.get('data', {}).get('url', result.get('url', 'Upload failed'))
-        print(f'Screenshot uploaded: {image_url}')
-        
-        # 同时保存到文件
-        with open('screenshot_url.txt', 'w') as f:
-            f.write(image_url)
-    else:
-        print(f'Upload failed: {response.status_code}')
-except Exception as e:
-    print(f'Error: {e}')
-    # 备用方案：保存到本地
-    screenshot.save('rustdesk_screenshot.png')
-    print('Screenshot saved locally as rustdesk_screenshot.png')
+if response.status_code == 200:
+    print('Screenshot uploaded successfully:')
+    print(response.text)
+    # 保存 URL 到文件
+    with open('screenshot_url.txt', 'w') as f:
+        f.write(response.text)
+else:
+    print(f'Upload failed: {response.status_code}')
+    print(response.text)
+    screenshot.save('rustdesk_id.png')
+    print('Screenshot saved locally as rustdesk_id.png')
 "
-      
-      - name: Display Connection Info
+
+      # === 显示上传结果 ===
+      - name: Show upload result
         run: |
-          Write-Host "========================================="
-          Write-Host "Rust Desk is ready!"
-          Write-Host "Screenshot of Rust Desk window has been uploaded"
           if (Test-Path "screenshot_url.txt") {
             $url = Get-Content "screenshot_url.txt"
-            Write-Host "Screenshot URL: $url"
+            Write-Host "========================================="
+            Write-Host "Rust Desk screenshot uploaded!"
+            Write-Host "Download URL: $url"
+            Write-Host "========================================="
+          } else {
+            Write-Host "Screenshot saved locally (upload failed)"
           }
-          Write-Host "========================================="
-      
+
+      # === 保持运行 ===
       - name: Time Counter
         run: cmd /c loop.bat
