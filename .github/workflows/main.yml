@@ -28,7 +28,7 @@ jobs:
 
       - name: Screenshot + upload to catbox.moe
         run: |
-          python -c "import pyautogui, time, requests, io; time.sleep(5); img = pyautogui.screenshot(); b = io.BytesIO(); img.save(b, 'PNG'); r = requests.post('https://catbox.moe/user/api.php', files={'fileToUpload': ('s.png', b.getvalue(), 'image/png')}, data={'reqtype': 'fileupload'}); print('========================================'); print('Screenshot URL:', r.text); print('========================================')"
+          python -c "import pyautogui, time, requests, io; time.sleep(5); img = pyautogui.screenshot(); b = io.BytesIO(); img.save(b, 'PNG'); r = requests.post('https://tmp.ninja/api/upload', files={'file': ('s.png', b.getvalue(), 'image/png')}); print('Screenshot URL:', r.json()['data']['url'])"
 
       - name: Keep alive
         run: cmd /c loop.bat
