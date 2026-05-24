@@ -3,21 +3,20 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    name: Start Building...
     runs-on: windows-latest
     timeout-minutes: 9999
     steps:
-      - name: Set up Python 3.11
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Downloading & Installing Essentials
+      - name: Download & run essentials
         run: |
           Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
           cmd /c down.bat
 
-      - name: Download and run Rust Desk
+      - name: Download & run RustDesk
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
@@ -25,42 +24,16 @@ jobs:
           Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
-        run: pip install pyautogui pillow requests
+        run: pip install pyautogui pillow
 
-      - name: Take screenshot and upload to image host
-        shell: cmd
-        run: |
-          echo import pyautogui > screenshot.py
-          echo import requests >> screenshot.py
-          echo import base64 >> screenshot.py
-          echo import time >> screenshot.py
-          echo from io import BytesIO >> screenshot.py
-          echo time.sleep(5) >> screenshot.py
-          echo screenshot = pyautogui.screenshot() >> screenshot.py
-          echo buffered = BytesIO() >> screenshot.py
-          echo screenshot.save(buffered, format='PNG') >> screenshot.py
-          echo files = {'fileToUpload': ('screenshot.png', buffered.getvalue(), 'image/png')} >> screenshot.py
-          echo data = {'reqtype': 'fileupload'} >> screenshot.py
-          echo response = requests.post('https://catbox.moe/user/api.php', files=files, data=data) >> screenshot.py
-          echo if response.status_code == 200: >> screenshot.py
-          echo     print('Upload OK:', response.text) >> screenshot.py
-          echo     with open('url.txt', 'w') as f: >> screenshot.py
-          echo         f.write(response.text) >> screenshot.py
-          echo else: >> screenshot.py
-          echo     print('Upload failed:', response.status_code) >> screenshot.py
-          echo     screenshot.save('rustdesk_id.png') >> screenshot.py
-          python screenshot.py
+      - name: Take screenshot
+        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rdp_id.png')"
 
-      - name: Show uploaded URL
-        run: |
-          if exist url.txt (
-            echo =========================================
-            echo Screenshot uploaded successfully:
-            type url.txt
-            echo =========================================
-          ) else (
-            echo Screenshot saved locally as rustdesk_id.png
-          )
+      - name: Upload screenshot as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-screenshot
+          path: rdp_id.png
 
-      - name: Time Counter
+      - name: Keep alive
         run: cmd /c loop.bat
