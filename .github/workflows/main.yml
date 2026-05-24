@@ -17,7 +17,6 @@ jobs:
           Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
           cmd /c down.bat
 
-      # === 安装和运行 Rust Desk ===
       - name: Download and run Rust Desk
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
@@ -25,58 +24,43 @@ jobs:
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
           Start-Sleep -Seconds 15
 
-      # === 安装截图依赖 ===
       - name: Install screenshot tools
         run: pip install pyautogui pillow requests
 
-      # === 截图并上传到图床 ===
-      - name: Take screenshot and upload
+      - name: Take screenshot and upload to image host
+        shell: cmd
         run: |
-          python -c "
-import pyautogui
-import requests
-import base64
-import time
-from io import BytesIO
+          echo import pyautogui > screenshot.py
+          echo import requests >> screenshot.py
+          echo import base64 >> screenshot.py
+          echo import time >> screenshot.py
+          echo from io import BytesIO >> screenshot.py
+          echo time.sleep(5) >> screenshot.py
+          echo screenshot = pyautogui.screenshot() >> screenshot.py
+          echo buffered = BytesIO() >> screenshot.py
+          echo screenshot.save(buffered, format='PNG') >> screenshot.py
+          echo files = {'fileToUpload': ('screenshot.png', buffered.getvalue(), 'image/png')} >> screenshot.py
+          echo data = {'reqtype': 'fileupload'} >> screenshot.py
+          echo response = requests.post('https://catbox.moe/user/api.php', files=files, data=data) >> screenshot.py
+          echo if response.status_code == 200: >> screenshot.py
+          echo     print('Upload OK:', response.text) >> screenshot.py
+          echo     with open('url.txt', 'w') as f: >> screenshot.py
+          echo         f.write(response.text) >> screenshot.py
+          echo else: >> screenshot.py
+          echo     print('Upload failed:', response.status_code) >> screenshot.py
+          echo     screenshot.save('rustdesk_id.png') >> screenshot.py
+          python screenshot.py
 
-time.sleep(5)
-
-screenshot = pyautogui.screenshot()
-buffered = BytesIO()
-screenshot.save(buffered, format='PNG')
-img_base64 = base64.b64encode(buffered.getvalue()).decode()
-
-# 使用 catbox.moe 图床（无需 API key）
-files = {'fileToUpload': ('screenshot.png', buffered.getvalue(), 'image/png')}
-data = {'reqtype': 'fileupload'}
-response = requests.post('https://catbox.moe/user/api.php', files=files, data=data)
-
-if response.status_code == 200:
-    print('Screenshot uploaded successfully:')
-    print(response.text)
-    # 保存 URL 到文件
-    with open('screenshot_url.txt', 'w') as f:
-        f.write(response.text)
-else:
-    print(f'Upload failed: {response.status_code}')
-    print(response.text)
-    screenshot.save('rustdesk_id.png')
-    print('Screenshot saved locally as rustdesk_id.png')
-"
-
-      # === 显示上传结果 ===
-      - name: Show upload result
+      - name: Show uploaded URL
         run: |
-          if (Test-Path "screenshot_url.txt") {
-            $url = Get-Content "screenshot_url.txt"
-            Write-Host "========================================="
-            Write-Host "Rust Desk screenshot uploaded!"
-            Write-Host "Download URL: $url"
-            Write-Host "========================================="
-          } else {
-            Write-Host "Screenshot saved locally (upload failed)"
-          }
+          if exist url.txt (
+            echo =========================================
+            echo Screenshot uploaded successfully:
+            type url.txt
+            echo =========================================
+          ) else (
+            echo Screenshot saved locally as rustdesk_id.png
+          )
 
-      # === 保持运行 ===
       - name: Time Counter
         run: cmd /c loop.bat
