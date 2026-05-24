@@ -41,64 +41,53 @@ jobs:
             throw "Failed to download valid rustdesk.exe"
           }
 
-      # === 启动 RustDesk 便携版（后台运行）===
+      # === 启动 RustDesk 便携版 ===
       - name: Start RustDesk portable
         run: |
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
           Write-Host "RustDesk started. Waiting for window to appear..."
           Start-Sleep -Seconds 10
 
-      # === 模拟鼠标点击 Install 按钮（避免 UAC）===
-      - name: Click Install button using Python
+      # === 模拟点击 Install 按钮（通过 Python 脚本文件）===
+      - name: Click Install button
         run: |
-          pip install pyautogui pillow
-          python -c "
+          # 创建点击脚本
+          @"
 import pyautogui
 import time
-import math
 
-# 等待窗口完全加载
 time.sleep(5)
-
-# 获取屏幕尺寸
 screen_width, screen_height = pyautogui.size()
-print(f'Screen size: {screen_width}x{screen_height}')
-
-# RustDesk 窗口通常居中，Install 按钮位于窗口中央偏下
-# 假设按钮位置：屏幕宽度一半，屏幕高度三分之二
 click_x = screen_width // 2
 click_y = int(screen_height * 0.7)
-
 print(f'Clicking at ({click_x}, {click_y})')
 pyautogui.click(click_x, click_y)
-
-# 等待安装过程完成（点击后 RustDesk 会静默安装服务）
-print('Clicked Install. Waiting 30 seconds for installation and password generation...')
+print('Clicked Install. Waiting 30 seconds...')
 time.sleep(30)
-"
+"@ | Out-File -FilePath "$env:TEMP\click_install.py" -Encoding utf8
+          pip install pyautogui pillow
+          python "$env:TEMP\click_install.py"
 
-      # === 等待密码生成（额外等待）===
-      - name: Wait for password to generate
+      # === 等待密码生成 ===
+      - name: Wait for password
         run: |
-          Write-Host "Waiting additional 60 seconds for password to be ready..."
+          Write-Host "Waiting additional 60 seconds for password generation..."
           Start-Sleep -Seconds 60
 
-      # === 安装截图工具（如未安装）===
-      - name: Install screenshot tools
+      # === 截图并上传 ===
+      - name: Install screenshot tools (if not already)
         run: pip install pyautogui pillow
 
-      # === 截图 ===
       - name: Take screenshot
         run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
-      # === 上传截图 ===
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
         with:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # === PowerShell 无限循环，保持工作流活跃 ===
+      # === 保持运行 ===
       - name: Keep runner alive forever
         run: |
           Write-Host "========================================"
