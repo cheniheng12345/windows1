@@ -11,47 +11,27 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download RustDesk portable (direct, with retry)
+      - name: Download RustDesk installer
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
-          $out = "$env:TEMP\rustdesk.exe"
-          # 删除可能损坏的旧文件
-          if (Test-Path $out) { Remove-Item $out -Force }
-          # 使用 Invoke-WebRequest 下载，最多重试 3 次
-          $retry = 0
-          do {
-            try {
-              Write-Host "Downloading from $url (attempt $($retry+1))..."
-              Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-              # 检查文件大小是否 > 5MB（正常约 50MB）
-              $size = (Get-Item $out).Length
-              if ($size -gt 5MB) {
-                Write-Host "Download successful. Size: $([math]::Round($size/1MB, 2)) MB"
-                break
-              } else {
-                Write-Host "File too small ($size bytes), retrying..."
-                Remove-Item $out -Force
-              }
-            } catch {
-              Write-Host "Download failed: $_"
-            }
-            $retry++
-            Start-Sleep -Seconds 3
-          } while ($retry -lt 3)
-          if (-not (Test-Path $out) -or (Get-Item $out).Length -lt 5MB) {
-            throw "Failed to download valid rustdesk.exe"
-          }
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
 
-      - name: Run RustDesk portable
+      - name: Install RustDesk (system level, avoids UAC)
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Start-Sleep -Seconds 15
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--silent-install" -Wait
+          Write-Host "RustDesk installed successfully."
+
+      - name: Start RustDesk and wait for password generation
+        run: |
+          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
+          Write-Host "Waiting 30 seconds for password to generate..."
+          Start-Sleep -Seconds 30
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
 
-      - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rustdesk_id.png')"
+      - name: Take screenshot (password should be visible now)
+        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
@@ -59,6 +39,7 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      - name: Keep alive
+      # === 保持运行，让 RustDesk 持续可连 ===
+      - name: Time Counter (keep alive)
         run: cmd /c loop.bat
         continue-on-error: true
