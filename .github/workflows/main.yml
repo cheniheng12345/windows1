@@ -11,24 +11,41 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download & run essentials (optional)
-        run: |
-          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
-          cmd /c down.bat
-        continue-on-error: true
-
-      - name: Download RustDesk portable (with proxy)
+      - name: Download RustDesk portable (direct, with retry)
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
-          $proxyUrl = "https://ghproxy.com/" + $url
-          Write-Host "Downloading from proxy..."
-          curl -L --retry 5 --retry-delay 2 -o "$env:TEMP\rustdesk.exe" $proxyUrl
-          Write-Host "Download completed."
+          $out = "$env:TEMP\rustdesk.exe"
+          # 删除可能损坏的旧文件
+          if (Test-Path $out) { Remove-Item $out -Force }
+          # 使用 Invoke-WebRequest 下载，最多重试 3 次
+          $retry = 0
+          do {
+            try {
+              Write-Host "Downloading from $url (attempt $($retry+1))..."
+              Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+              # 检查文件大小是否 > 5MB（正常约 50MB）
+              $size = (Get-Item $out).Length
+              if ($size -gt 5MB) {
+                Write-Host "Download successful. Size: $([math]::Round($size/1MB, 2)) MB"
+                break
+              } else {
+                Write-Host "File too small ($size bytes), retrying..."
+                Remove-Item $out -Force
+              }
+            } catch {
+              Write-Host "Download failed: $_"
+            }
+            $retry++
+            Start-Sleep -Seconds 3
+          } while ($retry -lt 3)
+          if (-not (Test-Path $out) -or (Get-Item $out).Length -lt 5MB) {
+            throw "Failed to download valid rustdesk.exe"
+          }
 
       - name: Run RustDesk portable
         run: |
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Start-Sleep -Seconds 10
+          Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -42,6 +59,6 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      - name: Keep alive (optional)
+      - name: Keep alive
         run: cmd /c loop.bat
         continue-on-error: true
