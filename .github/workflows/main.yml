@@ -11,24 +11,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download essentials
+      - name: Download & run essentials
         run: |
           Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
           cmd /c down.bat
 
-      - name: Download & run RustDesk
+      - name: Download & install RustDesk
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--silent-install" -Wait
           Start-Sleep -Seconds 15
 
-      - name: Install tools
-        run: pip install pyautogui pillow requests
+      - name: Install screenshot tools
+        run: pip install pyautogui pillow
 
-      - name: Screenshot + upload to catbox.moe
-        run: |
-          python -c "import pyautogui, time, requests, io; time.sleep(5); img = pyautogui.screenshot(); b = io.BytesIO(); img.save(b, 'PNG'); r = requests.post('https://tmp.ninja/api/upload', files={'file': ('s.png', b.getvalue(), 'image/png')}); print('Screenshot URL:', r.json()['data']['url'])"
+      - name: Take screenshot
+        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rustdesk_id.png')"
+
+      - name: Upload screenshot as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustdesk-screenshot
+          path: rustdesk_id.png
 
       - name: Keep alive
         run: cmd /c loop.bat
