@@ -52,6 +52,12 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # ========== 保持运行（原有 loop.bat 无限循环）==========
-      - name: Time Counter
-        run: cmd /c loop.bat
+      # ========== 保持运行（PowerShell 无限循环）==========
+      - name: Keep runner alive forever
+        run: |
+          Write-Host "========================================"
+          Write-Host "All services (LiteManager, RustDesk) are running."
+          Write-Host "Workflow will run continuously until manually cancelled."
+          Write-Host "Download the screenshot from Artifacts to see RustDesk ID and password."
+          Write-Host "========================================"
+          while ($true) { Start-Sleep -Seconds 60 }
