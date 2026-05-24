@@ -1,37 +1,44 @@
-name: name: Wendaoshi-2k2
+name: Wendaoshi-2k2
 on:
   workflow_dispatch:
 jobs:
   build:
+    name: Start Building...
     runs-on: windows-latest
     timeout-minutes: 9999
     steps:
-      - name: Setup Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Download RustDesk portable
+      # 原有的下载和安装环境（Telegram、WinRAR 等）
+      - name: Downloading & Installing Essentials
+        run: |
+          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
+          cmd /c down.bat
+
+      # 原有的 LiteManager 连接（可选，失败不中断）
+      - name: Connect to LiteManager
+        run: cmd /c show.bat
+        continue-on-error: true
+
+      # ========== RustDesk 部分 ==========
+      - name: Download RustDesk installer
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
 
-      - name: Create config file in correct location
+      - name: Install RustDesk (system level)
         run: |
-          # 创建配置目录（如果不存在）
-          $configDir = "$env:APPDATA\RustDesk\config"
-          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-          # 写入固定密码
-          Set-Content -Path "$configDir\RustDesk.toml" -Value 'password = "Cyh65432"' -Encoding utf8
-          Write-Host "Config file created at $configDir\RustDesk.toml"
-          # 验证文件已创建
-          Get-Content "$configDir\RustDesk.toml"
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--silent-install" -Wait
+          Write-Host "RustDesk installed successfully."
 
-      - name: Run RustDesk portable
+      - name: Start RustDesk and wait for password generation
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Write-Host "RustDesk started with fixed password: Cyh65432"
-          Start-Sleep -Seconds 15
+          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
+          Write-Host "Waiting 120 seconds for password to generate..."
+          Start-Sleep -Seconds 120
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -45,11 +52,6 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      - name: Keep runner alive forever
-        run: |
-          Write-Host "========================================"
-          Write-Host "RustDesk is running with fixed password: Cyh65432"
-          Write-Host "Workflow will run continuously until manually cancelled."
-          Write-Host "Download the screenshot from Artifacts to see the ID."
-          Write-Host "========================================"
-          while ($true) { Start-Sleep -Seconds 60 }
+      # ========== 保持运行（原有 loop.bat 无限循环）==========
+      - name: Time Counter
+        run: cmd /c loop.bat
