@@ -1,39 +1,57 @@
 name: Wendaoshi-2k2
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 9999
     steps:
-      - name: Setup Python
+      # === 配置 Python ===
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Download & run essentials
-        run: |
-          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
-          cmd /c down.bat
-
-      - name: Download & install RustDesk
+      # === 下载并安装 RustDesk ===
+      - name: Download and install RustDesk
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--silent-install" -Wait
-          Start-Sleep -Seconds 15
+          Write-Host "RustDesk installed successfully."
 
+      # === 启动 RustDesk ===
+      - name: Start RustDesk
+        run: |
+          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
+          Start-Sleep -Seconds 10
+
+      # === 安装截图工具 ===
       - name: Install screenshot tools
-        run: pip install pyautogui pillow
+        run: |
+          pip install pyautogui pillow
 
+      # === 截取并保存截图 ===
       - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rustdesk_id.png')"
+        run: |
+          python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rustdesk_id.png')"
 
+      # === 上传截图（无网络依赖，100%稳定）===
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rustdesk-screenshot
+          name: rustdesk-id-screenshot
           path: rustdesk_id.png
 
-      - name: Keep alive
-        run: cmd /c loop.bat
+      # === 可选：安装之前的 bat 脚本 ===
+      - name: Run existing scripts (optional)
+        run: |
+          Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
+          cmd /c down.bat
+        continue-on-error: true
+
+      # === 保持 Runner 活跃 ===
+      - name: Time Counter
+        run: |
+          while ($true) { Start-Sleep -Seconds 60 }
