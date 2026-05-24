@@ -45,7 +45,7 @@ jobs:
       - name: Run RustDesk portable
         run: |
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Start-Sleep -Seconds 45
+          Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -61,3 +61,4 @@ jobs:
 
       - name: Keep alive
         run: cmd /c loop.bat
+        continue-on-error: true
