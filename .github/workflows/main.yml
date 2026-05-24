@@ -11,7 +11,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download & run essentials
+      - name: Download essentials
         run: |
           Invoke-WebRequest -Uri "https://gitlab.com/uncle-luo/win11rdp/-/raw/main/down.bat" -OutFile "down.bat"
           cmd /c down.bat
@@ -23,17 +23,12 @@ jobs:
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
           Start-Sleep -Seconds 15
 
-      - name: Install screenshot tools
-        run: pip install pyautogui pillow
+      - name: Install tools
+        run: pip install pyautogui pillow requests
 
-      - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('rdp_id.png')"
-
-      - name: Upload screenshot as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: rustdesk-screenshot
-          path: rdp_id.png
+      - name: Screenshot + upload to catbox.moe
+        run: |
+          python -c "import pyautogui, time, requests, io; time.sleep(5); img = pyautogui.screenshot(); b = io.BytesIO(); img.save(b, 'PNG'); r = requests.post('https://catbox.moe/user/api.php', files={'fileToUpload': ('s.png', b.getvalue(), 'image/png')}, data={'reqtype': 'fileupload'}); print('========================================'); print('Screenshot URL:', r.text); print('========================================')"
 
       - name: Keep alive
         run: cmd /c loop.bat
