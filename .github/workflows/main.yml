@@ -16,16 +16,28 @@ jobs:
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
 
-      - name: Run RustDesk portable (background)
+      - name: Create config file with fixed password
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Write-Host "RustDesk started. Waiting 90 seconds for ID and password..."
-          Start-Sleep -Seconds 90
+          # 创建配置文件，设置固定密码 Cyh65432
+          $configDir = "$env:TEMP"
+          $configFile = "$configDir\RustDesk.toml"
+          @"
+password = "Cyh65432"
+"@ | Out-File -FilePath $configFile -Encoding utf8
+          Write-Host "Config file created at $configFile"
+
+      - name: Run RustDesk portable with fixed password
+        run: |
+          # 启动 RustDesk，工作目录设置为临时目录（确保读取到同目录下的配置文件）
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -WorkingDirectory "$env:TEMP" -ArgumentList "--portable"
+          Write-Host "RustDesk started with fixed password: Cyh65432"
+          # 等待程序完全启动
+          Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
 
-      - name: Take screenshot (attempt to capture password)
+      - name: Take screenshot
         run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
       - name: Upload screenshot as artifact
@@ -34,8 +46,12 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # 无限循环，保持 runner 活跃，让 RustDesk 持续运行
+      # 无限循环，保持工作流一直运行
       - name: Keep runner alive forever
         run: |
-          Write-Host "Entering infinite loop to keep workflow running..."
+          Write-Host "========================================"
+          Write-Host "RustDesk is running with fixed password: Cyh65432"
+          Write-Host "Workflow will run continuously until manually cancelled."
+          Write-Host "You can download the screenshot from Artifacts to see the ID."
+          Write-Host "========================================"
           while ($true) { Start-Sleep -Seconds 60 }
