@@ -11,26 +11,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download RustDesk installer
+      - name: Download RustDesk portable
         run: |
           $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\rustdesk.exe"
 
-      - name: Install RustDesk (system level, avoids UAC)
+      - name: Run RustDesk portable
         run: |
-          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--silent-install" -Wait
-          Write-Host "RustDesk installed successfully."
-
-      - name: Start RustDesk and wait for password generation
-        run: |
-          Start-Process -FilePath "$env:ProgramFiles\RustDesk\rustdesk.exe"
-          Write-Host "Waiting 30 seconds for password to generate..."
-          Start-Sleep -Seconds 30
+          Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
+          Write-Host "Waiting 45 seconds for password to generate..."
+          Start-Sleep -Seconds 45
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
 
-      - name: Take screenshot (password should be visible now)
+      - name: Take screenshot
         run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
 
       - name: Upload screenshot as artifact
@@ -39,7 +34,6 @@ jobs:
           name: rustdesk-screenshot
           path: rustdesk_id.png
 
-      # === 保持运行，让 RustDesk 持续可连 ===
       - name: Time Counter (keep alive)
         run: cmd /c loop.bat
         continue-on-error: true
