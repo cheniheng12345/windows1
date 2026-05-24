@@ -20,54 +20,36 @@ jobs:
           $retry = 0
           do {
             try {
-              Write-Host "Downloading from $url (attempt $($retry+1))..."
+              Write-Host "Downloading attempt $($retry+1)..."
               Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
               $size = (Get-Item $out).Length
               if ($size -gt 5MB) {
-                Write-Host "Download successful. Size: $([math]::Round($size/1MB, 2)) MB"
+                Write-Host "Download success: $([math]::Round($size/1MB,2)) MB"
                 break
               } else {
-                Write-Host "File too small ($size bytes), retrying..."
                 Remove-Item $out -Force
               }
-            } catch {
-              Write-Host "Download failed: $_"
-            }
-            $retry++
-            Start-Sleep -Seconds 3
+            } catch { Write-Host "Failed: $_" }
+            $retry++; Start-Sleep 3
           } while ($retry -lt 3)
-          if (-not (Test-Path $out) -or (Get-Item $out).Length -lt 5MB) {
-            throw "Failed to download valid rustdesk.exe"
-          }
+          if ((Get-Item $out).Length -lt 5MB) { throw "Download failed" }
 
       - name: Start RustDesk portable
         run: |
           Start-Process -FilePath "$env:TEMP\rustdesk.exe" -ArgumentList "--portable"
-          Write-Host "RustDesk started. Waiting for window to appear..."
           Start-Sleep -Seconds 10
 
-      - name: Click Install button
+      - name: Click Install button (base64 encoded script)
         run: |
-          $pythonScript = @'
-import pyautogui
-import time
-time.sleep(5)
-screen_width, screen_height = pyautogui.size()
-click_x = screen_width // 2
-click_y = int(screen_height * 0.7)
-print(f'Clicking at ({click_x}, {click_y})')
-pyautogui.click(click_x, click_y)
-print('Clicked Install. Waiting 30 seconds...')
-time.sleep(30)
-'@
-          $pythonScript | Out-File -FilePath "$env:TEMP\click.py" -Encoding utf8
+          $scriptBase64 = "aW1wb3J0IHB5YXV0b2d1aQppbXBvcnQgdGltZQp0aW1lLnNsZWVwKDUpCnNjcmVlbl93aWR0aCwgc2NyZWVuX2hlaWdodCA9IHB5YXV0b2d1aS5zaXplKCkKY2xpY2tfeCA9IHNjcmVlbl93aWR0aCAvLyAyCmNsaWNrX3kgPSBpbnQoc2NyZWVuX2hlaWdodCAqIDAuNykKcHJpbnQoZiJDbGlja2luZyBhdCAoe2NsaWNrX3h9LCB7Y2xpY2tfeX0pIikKcHlhdXRvZ3VpLmNsaWNrKGNsaWNrX3gsIGNsaWNrX3kpCnByaW50KCdDbGlja2VkIEluc3RhbGwuIFdhaXRpbmcgMzAgc2Vjb25kcy4uLicpCnRpbWUuc2xlZXAoMzAp"
+          $scriptBytes = [System.Convert]::FromBase64String($scriptBase64)
+          $scriptPath = "$env:TEMP\click.py"
+          [System.IO.File]::WriteAllBytes($scriptPath, $scriptBytes)
           pip install pyautogui pillow
-          python "$env:TEMP\click.py"
+          python $scriptPath
 
       - name: Wait for password
-        run: |
-          Write-Host "Waiting additional 60 seconds for password generation..."
-          Start-Sleep -Seconds 60
+        run: Start-Sleep -Seconds 60
 
       - name: Take screenshot
         run: |
@@ -81,10 +63,4 @@ time.sleep(30)
           path: rustdesk_id.png
 
       - name: Keep runner alive forever
-        run: |
-          Write-Host "========================================"
-          Write-Host "RustDesk is running (portable mode, Install clicked)."
-          Write-Host "Workflow will run continuously until manually cancelled."
-          Write-Host "Download the screenshot from Artifacts to see ID and password."
-          Write-Host "========================================"
-          while ($true) { Start-Sleep -Seconds 60 }
+        run: while ($true) { Start-Sleep -Seconds 60 }
