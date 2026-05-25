@@ -17,13 +17,36 @@ jobs:
           $url = "https://download.anydesk.com/AnyDesk.exe"
           $out = "$env:TEMP\AnyDesk.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "AnyDesk portable downloaded to $out"
+          Write-Host "AnyDesk portable downloaded"
 
-      - name: Run AnyDesk portable
+      - name: Create config for unattended access
         run: |
-          Start-Process -FilePath "$env:TEMP\AnyDesk.exe"
-          Write-Host "AnyDesk started. Waiting 60 seconds for ID and one-time password to generate..."
-          Start-Sleep -Seconds 60
+          # 创建配置目录（便携版读取同目录或 ProgramData）
+          $configDir = "$env:TEMP\AnyDesk_config"
+          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+          # 写入 service.conf 启用无人值守和固定密码
+          $configFile = "$configDir\service.conf"
+          @"
+[options]
+enable_unattended=1
+[auth]
+password=Cyh65432
+"@ | Out-File -FilePath $configFile -Encoding utf8
+          Write-Host "Unattended config created at $configFile"
+          # 便携版启动时通过 --set-config-dir 指定配置目录
+          # 但我们先直接启动，稍后通过参数关联
+
+      - name: Run AnyDesk with unattended config
+        run: |
+          $anydesk = "$env:TEMP\AnyDesk.exe"
+          $configDir = "$env:TEMP\AnyDesk_config"
+          # 使用 --set-config-dir 加载配置，并启动服务
+          Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`" --service"
+          Start-Sleep -Seconds 5
+          # 再次启动主界面（确保托盘图标出现）
+          Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`""
+          Write-Host "AnyDesk started with unattended access. Password: Cyh65432"
+          Start-Sleep -Seconds 30
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -39,9 +62,6 @@ jobs:
 
       - name: Keep runner alive forever
         run: |
-          Write-Host "========================================"
-          Write-Host "AnyDesk is running with a one-time password."
-          Write-Host "Download the 'anydesk-screenshot' artifact to see the ID and password."
-          Write-Host "Workflow will run continuously until manually cancelled."
-          Write-Host "========================================"
+          Write-Host "AnyDesk is running with unattended access (password: Cyh65432)"
+          Write-Host "Download screenshot from Artifacts to see the ID"
           while ($true) { Start-Sleep -Seconds 60 }
