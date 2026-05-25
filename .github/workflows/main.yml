@@ -12,45 +12,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download AnyDesk installer
+      - name: Download AnyDesk portable
         run: |
           $url = "https://download.anydesk.com/AnyDesk.exe"
           $out = "$env:TEMP\AnyDesk.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "AnyDesk installer downloaded"
+          Write-Host "AnyDesk portable downloaded to $out"
 
-      - name: Install AnyDesk silently
+      - name: Run AnyDesk portable
         run: |
-          $installer = "$env:TEMP\AnyDesk.exe"
-          Start-Process -FilePath $installer -ArgumentList "--silent" -Wait -NoNewWindow
-          Start-Sleep -Seconds 10
-          Write-Host "AnyDesk installed"
-
-      - name: Find AnyDesk executable
-        id: find
-        run: |
-          $paths = @(
-            "$env:ProgramFiles\AnyDesk\AnyDesk.exe",
-            "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
-          )
-          $found = $null
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              $found = $p
-              break
-            }
-          }
-          if (-not $found) {
-            Write-Host "AnyDesk not found"
-            exit 1
-          }
-          Write-Host "AnyDesk path: $found"
-          echo "ANYDESK_PATH=$found" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - name: Start AnyDesk (generate one-time password)
-        run: |
-          Start-Process -FilePath "$env:ANYDESK_PATH"
-          Write-Host "AnyDesk started. Waiting 60 seconds for ID and one-time password generation..."
+          Start-Process -FilePath "$env:TEMP\AnyDesk.exe"
+          Write-Host "AnyDesk started. Waiting 60 seconds for ID and one-time password to generate..."
           Start-Sleep -Seconds 60
 
       - name: Install screenshot tools
@@ -65,14 +37,11 @@ jobs:
           name: anydesk-screenshot
           path: anydesk_id.png
 
-      - name: Show connection info
-        run: |
-          Write-Host "==========================================="
-          Write-Host "AnyDesk is running on GitHub Actions runner."
-          Write-Host "Download the artifact 'anydesk-screenshot' to view the ID and one-time password."
-          Write-Host "The password is usually a 6-digit number displayed in the AnyDesk window."
-          Write-Host "Workflow will stay alive until manually cancelled."
-          Write-Host "==========================================="
-
       - name: Keep runner alive forever
-        run: while ($true) { Start-Sleep -Seconds 60 }
+        run: |
+          Write-Host "========================================"
+          Write-Host "AnyDesk is running with a one-time password."
+          Write-Host "Download the 'anydesk-screenshot' artifact to see the ID and password."
+          Write-Host "Workflow will run continuously until manually cancelled."
+          Write-Host "========================================"
+          while ($true) { Start-Sleep -Seconds 60 }
