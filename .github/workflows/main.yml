@@ -21,29 +21,25 @@ jobs:
 
       - name: Create config for unattended access
         run: |
-          # 创建配置目录（便携版读取同目录或 ProgramData）
           $configDir = "$env:TEMP\AnyDesk_config"
           New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-          # 写入 service.conf 启用无人值守和固定密码
           $configFile = "$configDir\service.conf"
-          @"
-[options]
-enable_unattended=1
-[auth]
-password=Cyh65432
-"@ | Out-File -FilePath $configFile -Encoding utf8
+          # 逐行写入配置（避免多行字符串）
+          Set-Content -Path $configFile -Value "[options]"
+          Add-Content -Path $configFile -Value "enable_unattended=1"
+          Add-Content -Path $configFile -Value ""
+          Add-Content -Path $configFile -Value "[auth]"
+          Add-Content -Path $configFile -Value "password=Cyh65432"
           Write-Host "Unattended config created at $configFile"
-          # 便携版启动时通过 --set-config-dir 指定配置目录
-          # 但我们先直接启动，稍后通过参数关联
 
       - name: Run AnyDesk with unattended config
         run: |
           $anydesk = "$env:TEMP\AnyDesk.exe"
           $configDir = "$env:TEMP\AnyDesk_config"
-          # 使用 --set-config-dir 加载配置，并启动服务
+          # 启动后台服务
           Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`" --service"
           Start-Sleep -Seconds 5
-          # 再次启动主界面（确保托盘图标出现）
+          # 启动主界面
           Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`""
           Write-Host "AnyDesk started with unattended access. Password: Cyh65432"
           Start-Sleep -Seconds 30
