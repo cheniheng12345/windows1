@@ -12,69 +12,67 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Download RustDesk installer
+      - name: Download AnyDesk installer
         run: |
-          $url = "https://github.com/rustdesk/rustdesk/releases/download/1.2.3/rustdesk-1.2.3-x86_64.exe"
-          $out = "$env:TEMP\rustdesk_installer.exe"
-          $retry = 0
-          do {
-            try {
-              Write-Host "Download attempt $($retry+1)..."
-              Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-              $size = (Get-Item $out).Length
-              if ($size -gt 5MB) {
-                Write-Host "Downloaded $([math]::Round($size/1MB,2)) MB"
-                break
-              } else {
-                Remove-Item $out -Force
-              }
-            } catch { Write-Host "Failed: $_" }
-            $retry++; Start-Sleep 3
-          } while ($retry -lt 3)
-          if ((Get-Item $out).Length -lt 5MB) { throw "Download failed" }
+          $url = "https://download.anydesk.com/AnyDesk.exe"
+          $out = "$env:TEMP\AnyDesk.exe"
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+          Write-Host "AnyDesk installer downloaded"
 
-      - name: Install RustDesk silently
+      - name: Install AnyDesk silently
         run: |
-          Write-Host "Installing RustDesk silently..."
-          $installer = "$env:TEMP\rustdesk_installer.exe"
-          # 尝试静默安装参数（NSIS常用/S，InnoSetup常用/VERYSILENT）
-          Start-Process -FilePath $installer -ArgumentList "/S" -Wait -NoNewWindow
-          # 等待安装完成
+          $installer = "$env:TEMP\AnyDesk.exe"
+          Start-Process -FilePath $installer -ArgumentList "--silent" -Wait -NoNewWindow
           Start-Sleep -Seconds 10
-          Write-Host "Installation completed."
+          Write-Host "AnyDesk installed"
 
-      - name: Start RustDesk and wait for password
+      - name: Find AnyDesk executable
+        id: find
         run: |
-          $rustdeskPath = "$env:ProgramFiles\RustDesk\rustdesk.exe"
-          if (-not (Test-Path $rustdeskPath)) {
-            $rustdeskPath = "${env:ProgramFiles(x86)}\RustDesk\rustdesk.exe"
+          $paths = @(
+            "$env:ProgramFiles\AnyDesk\AnyDesk.exe",
+            "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
+          )
+          $found = $null
+          foreach ($p in $paths) {
+            if (Test-Path $p) {
+              $found = $p
+              break
+            }
           }
-          if (Test-Path $rustdeskPath) {
-            Start-Process -FilePath $rustdeskPath
-            Write-Host "RustDesk started. Waiting 90 seconds for password generation..."
-            Start-Sleep -Seconds 90
-          } else {
-            Write-Host "RustDesk executable not found!"
+          if (-not $found) {
+            Write-Host "AnyDesk not found"
             exit 1
           }
+          Write-Host "AnyDesk path: $found"
+          echo "ANYDESK_PATH=$found" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Start AnyDesk (generate one-time password)
+        run: |
+          Start-Process -FilePath "$env:ANYDESK_PATH"
+          Write-Host "AnyDesk started. Waiting 60 seconds for ID and one-time password generation..."
+          Start-Sleep -Seconds 60
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
 
       - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('rustdesk_id.png')"
+        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('anydesk_id.png')"
 
       - name: Upload screenshot as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rustdesk-screenshot
-          path: rustdesk_id.png
+          name: anydesk-screenshot
+          path: anydesk_id.png
+
+      - name: Show connection info
+        run: |
+          Write-Host "==========================================="
+          Write-Host "AnyDesk is running on GitHub Actions runner."
+          Write-Host "Download the artifact 'anydesk-screenshot' to view the ID and one-time password."
+          Write-Host "The password is usually a 6-digit number displayed in the AnyDesk window."
+          Write-Host "Workflow will stay alive until manually cancelled."
+          Write-Host "==========================================="
 
       - name: Keep runner alive forever
-        run: |
-          Write-Host "========================================"
-          Write-Host "RustDesk installed and running."
-          Write-Host "Download screenshot from Artifacts to see ID and password."
-          Write-Host "Workflow will run continuously until cancelled."
-          Write-Host "========================================"
-          while ($true) { Start-Sleep -Seconds 60 }
+        run: while ($true) { Start-Sleep -Seconds 60 }
