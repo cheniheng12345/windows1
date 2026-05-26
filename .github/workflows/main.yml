@@ -17,32 +17,32 @@ jobs:
           $url = "https://download.anydesk.com/AnyDesk.exe"
           $out = "$env:TEMP\AnyDesk.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "AnyDesk portable downloaded"
+          Write-Host "AnyDesk portable downloaded to $out"
 
-      - name: Create config for unattended access
-        run: |
-          $configDir = "$env:TEMP\AnyDesk_config"
-          New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-          $configFile = "$configDir\service.conf"
-          # 逐行写入配置（避免多行字符串）
-          Set-Content -Path $configFile -Value "[options]"
-          Add-Content -Path $configFile -Value "enable_unattended=1"
-          Add-Content -Path $configFile -Value ""
-          Add-Content -Path $configFile -Value "[auth]"
-          Add-Content -Path $configFile -Value "password=Cyh65432"
-          Write-Host "Unattended config created at $configFile"
-
-      - name: Run AnyDesk with unattended config
+      - name: Install AnyDesk service (unattended)
         run: |
           $anydesk = "$env:TEMP\AnyDesk.exe"
-          $configDir = "$env:TEMP\AnyDesk_config"
-          # 启动后台服务
-          Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`" --service"
+          # 安装后台服务（需要管理员权限，GitHub Actions 默认拥有）
+          Start-Process -FilePath $anydesk -ArgumentList "--install-service" -Wait -NoNewWindow
+          Write-Host "AnyDesk service installed"
           Start-Sleep -Seconds 5
-          # 启动主界面
-          Start-Process -FilePath $anydesk -ArgumentList "--set-config-dir `"$configDir`""
-          Write-Host "AnyDesk started with unattended access. Password: Cyh65432"
-          Start-Sleep -Seconds 30
+
+      - name: Set fixed password (Cyh65432)
+        run: |
+          $anydesk = "$env:TEMP\AnyDesk.exe"
+          # 通过标准输入设置密码
+          echo "Cyh65432" | & $anydesk --set-password
+          Write-Host "Unattended password set to Cyh65432"
+
+      - name: Start AnyDesk service and client
+        run: |
+          # 确保服务已启动
+          Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+          # 启动主界面（显示ID和状态）
+          $anydesk = "$env:TEMP\AnyDesk.exe"
+          Start-Process -FilePath $anydesk
+          Write-Host "AnyDesk client started"
+          Start-Sleep -Seconds 15
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -58,6 +58,10 @@ jobs:
 
       - name: Keep runner alive forever
         run: |
-          Write-Host "AnyDesk is running with unattended access (password: Cyh65432)"
-          Write-Host "Download screenshot from Artifacts to see the ID"
+          Write-Host "========================================"
+          Write-Host "AnyDesk portable with service installed."
+          Write-Host "Password: Cyh65432"
+          Write-Host "Download screenshot from Artifacts to see the 9-digit ID."
+          Write-Host "Workflow will run until manually cancelled."
+          Write-Host "========================================"
           while ($true) { Start-Sleep -Seconds 60 }
