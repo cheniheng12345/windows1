@@ -1,76 +1,57 @@
-name: Wendaoshi-2k2
-on:
-  workflow_dispatch:
-jobs:
-  build:
-    runs-on: windows-latest
-    timeout-minutes: 9999
-    steps:
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
+- name: Download AnyDesk installer
+  run: |
+    # 下载并重命名安装文件
+    Invoke-WebRequest -Uri "https://download.anydesk.com/AnyDesk.exe" -OutFile "$env:TEMP\AnyDesk_Setup.exe"
+    Write-Host "AnyDesk installer downloaded."
 
-      - name: Download AnyDesk installer
-        run: |
-          $url = "https://download.anydesk.com/AnyDesk.exe"
-          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\AnyDesk_Setup.exe"
+- name: Install AnyDesk silently (standard method)
+  run: |
+    $installerPath = "$env:TEMP\AnyDesk_Setup.exe"
+    $installPath = "${env:ProgramFiles(x86)}\AnyDesk"
+    # 核心修改：使用标准静默安装参数（这会确保它在后台安装，不会弹出任何窗口或对话框）
+    Start-Process -FilePath $installerPath -ArgumentList "--install `"$installPath`" --start-with-win --create-shortcuts --create-desktop-icon --silent" -Wait -NoNewWindow
+    Write-Host "AnyDesk installation triggered."
 
-      - name: Silent install AnyDesk
-        run: |
-          Start-Process -FilePath "$env:TEMP\AnyDesk_Setup.exe" -ArgumentList "--silent" -Wait
-          Start-Sleep -Seconds 10
+- name: Wait and set fixed password (UncleLu0)
+  run: |
+    # 等待安装和初始化完成
+    Write-Host "Waiting for installation to finalize..."
+    Start-Sleep -Seconds 15
 
-      - name: Set fixed password (UncleLu0)
-        run: |
-          $anydesk = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
-          if (-not (Test-Path $anydesk)) { $anydesk = "$env:ProgramFiles\AnyDesk\AnyDesk.exe" }
-          # 设置无人值守密码
-          echo "UncleLu0" | & $anydesk --set-password
-          # 启用无人值守（通过注册表禁止弹窗）
-          New-Item -Path "HKLM:\SOFTWARE\AnyDesk" -Force | Out-Null
-          Set-ItemProperty -Path "HKLM:\SOFTWARE\AnyDesk" -Name "ad.security.interactive_access" -Value 2 -Type DWord -Force
-          Write-Host "Password set to UncleLu0"
+    $anydeskPath = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
+    if (-not (Test-Path $anydeskPath)) {
+        Write-Host "ERROR: AnyDesk.exe not found at expected path!"
+        exit 1
+    }
 
-      - name: Start AnyDesk service and client
-        run: |
-          $anydesk = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
-          if (-not (Test-Path $anydesk)) { $anydesk = "$env:ProgramFiles\AnyDesk\AnyDesk.exe" }
-          Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
-          Start-Process -FilePath $anydesk
-          Start-Sleep -Seconds 15
+    # 尝试设置密码
+    Write-Host "Setting fixed password (UncleLu0)..."
+    $password = "UncleLu0"
+    # 通过标准输入将密码传递给 --set-password 命令
+    echo $password | & $anydeskPath --set-password
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Password successfully set to '$password'."
+        # 验证密码是否已写入注册表或配置文件（可选，但有助于排查）
+    } else {
+        Write-Host "WARNING: Password setting may have failed with exit code $LASTEXITCODE."
+    }
 
-      - name: Take screenshot
-        run: |
-          pip install pyautogui pillow
-          python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('AnyDesk_ID.png')"
+    # 配置注册表以彻底避免远程连接提示
+    Write-Host "Configuring registry to avoid connection prompts..."
+    # 确保 AnyDesk 的注册表项存在
+    New-Item -Path "HKLM:\SOFTWARE\AnyDesk" -Force | Out-Null
+    # 设置 Interactive Access 为完全禁用 (Value 2)
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\AnyDesk" -Name "ad.security.interactive_access" -Value 2 -Type DWord -Force
+    Write-Host "Registry configured to disable interactive access prompts."
 
-      - name: Upload screenshot to Imgur
-        env:
-          IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
-        run: |
-          $clientId = "$env:IMGUR_CLIENT_ID"
-          if (-not $clientId) { Write-Host "No Imgur client ID, saving locally"; exit 0 }
-          $url = "https://api.imgur.com/3/image"
-          $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("AnyDesk_ID.png"))
-          $body = @{ image = $base64; type = "base64" } | ConvertTo-Json
-          $response = Invoke-RestMethod -Uri $url -Method Post -Headers @{ Authorization = "Client-ID $clientId" } -Body $body -ContentType "application/json"
-          $link = $response.data.link
-          Write-Host "========================================"
-          Write-Host "AnyDesk ID and password screenshot: $link"
-          Write-Host "Password: UncleLu0"
-          Write-Host "========================================"
-          # 保存链接以便后续使用
-          $link | Out-File -FilePath screenshot_url.txt
-
-      - name: Fallback upload screenshot as artifact
-        if: failure() || env.IMGUR_CLIENT_ID == ''
-        uses: actions/upload-artifact@v4
-        with:
-          name: anydesk-screenshot
-          path: AnyDesk_ID.png
-
-      - name: Keep runner alive forever
-        run: |
-          Write-Host "AnyDesk ready - ID in screenshot, password: UncleLu0"
-          while ($true) { Start-Sleep -Seconds 60 }
+- name: Start AnyDesk Service and Client
+  run: |
+    $anydeskPath = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
+    # 启动后台服务
+    Write-Host "Starting AnyDesk service..."
+    Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+    # 启动客户端主界面，用于生成并显示ID
+    Write-Host "Launching AnyDesk client..."
+    Start-Process -FilePath $anydeskPath
+    Start-Sleep -Seconds 15
+    Write-Host "AnyDesk is ready for connection."
