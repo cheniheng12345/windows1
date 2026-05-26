@@ -3,45 +3,74 @@ on:
   workflow_dispatch:
 jobs:
   build:
-    name: Start Building...
     runs-on: windows-latest
     timeout-minutes: 9999
     steps:
-      - name: Set up Python 3.11
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
-      - name: Download AnyDesk portable
+      - name: Download AnyDesk installer
         run: |
           $url = "https://download.anydesk.com/AnyDesk.exe"
-          $out = "$env:TEMP\AnyDesk.exe"
-          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "AnyDesk downloaded"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\AnyDesk_Setup.exe"
 
-      - name: Run AnyDesk (generate one‑time password)
+      - name: Silent install AnyDesk
         run: |
-          Start-Process -FilePath "$env:TEMP\AnyDesk.exe"
-          Write-Host "AnyDesk started. Waiting 60 seconds for ID and password..."
-          Start-Sleep -Seconds 60
+          Start-Process -FilePath "$env:TEMP\AnyDesk_Setup.exe" -ArgumentList "--silent" -Wait
+          Start-Sleep -Seconds 10
 
-      - name: Install screenshot tools
-        run: pip install pyautogui pillow
+      - name: Set fixed password (UncleLu0)
+        run: |
+          $anydesk = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
+          if (-not (Test-Path $anydesk)) { $anydesk = "$env:ProgramFiles\AnyDesk\AnyDesk.exe" }
+          # 设置无人值守密码
+          echo "UncleLu0" | & $anydesk --set-password
+          # 启用无人值守（通过注册表禁止弹窗）
+          New-Item -Path "HKLM:\SOFTWARE\AnyDesk" -Force | Out-Null
+          Set-ItemProperty -Path "HKLM:\SOFTWARE\AnyDesk" -Name "ad.security.interactive_access" -Value 2 -Type DWord -Force
+          Write-Host "Password set to UncleLu0"
+
+      - name: Start AnyDesk service and client
+        run: |
+          $anydesk = "${env:ProgramFiles(x86)}\AnyDesk\AnyDesk.exe"
+          if (-not (Test-Path $anydesk)) { $anydesk = "$env:ProgramFiles\AnyDesk\AnyDesk.exe" }
+          Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+          Start-Process -FilePath $anydesk
+          Start-Sleep -Seconds 15
 
       - name: Take screenshot
-        run: python -c "import pyautogui, time; time.sleep(3); pyautogui.screenshot('anydesk_id.png')"
+        run: |
+          pip install pyautogui pillow
+          python -c "import pyautogui, time; time.sleep(5); pyautogui.screenshot('AnyDesk_ID.png')"
 
-      - name: Upload screenshot as artifact
+      - name: Upload screenshot to Imgur
+        env:
+          IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
+        run: |
+          $clientId = "$env:IMGUR_CLIENT_ID"
+          if (-not $clientId) { Write-Host "No Imgur client ID, saving locally"; exit 0 }
+          $url = "https://api.imgur.com/3/image"
+          $base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("AnyDesk_ID.png"))
+          $body = @{ image = $base64; type = "base64" } | ConvertTo-Json
+          $response = Invoke-RestMethod -Uri $url -Method Post -Headers @{ Authorization = "Client-ID $clientId" } -Body $body -ContentType "application/json"
+          $link = $response.data.link
+          Write-Host "========================================"
+          Write-Host "AnyDesk ID and password screenshot: $link"
+          Write-Host "Password: UncleLu0"
+          Write-Host "========================================"
+          # 保存链接以便后续使用
+          $link | Out-File -FilePath screenshot_url.txt
+
+      - name: Fallback upload screenshot as artifact
+        if: failure() || env.IMGUR_CLIENT_ID == ''
         uses: actions/upload-artifact@v4
         with:
           name: anydesk-screenshot
-          path: anydesk_id.png
+          path: AnyDesk_ID.png
 
       - name: Keep runner alive forever
         run: |
-          Write-Host "========================================"
-          Write-Host "AnyDesk is running with a one‑time password."
-          Write-Host "Download the artifact 'anydesk-screenshot' to see the 9‑digit ID and the 6‑digit password."
-          Write-Host "Workflow will run until you cancel it manually."
-          Write-Host "========================================"
+          Write-Host "AnyDesk ready - ID in screenshot, password: UncleLu0"
           while ($true) { Start-Sleep -Seconds 60 }
