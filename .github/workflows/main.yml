@@ -17,32 +17,13 @@ jobs:
           $url = "https://download.anydesk.com/AnyDesk.exe"
           $out = "$env:TEMP\AnyDesk.exe"
           Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
-          Write-Host "AnyDesk portable downloaded to $out"
+          Write-Host "AnyDesk downloaded"
 
-      - name: Install AnyDesk service (unattended)
+      - name: Run AnyDesk (generate one‑time password)
         run: |
-          $anydesk = "$env:TEMP\AnyDesk.exe"
-          # 安装后台服务（需要管理员权限，GitHub Actions 默认拥有）
-          Start-Process -FilePath $anydesk -ArgumentList "--install-service" -Wait -NoNewWindow
-          Write-Host "AnyDesk service installed"
-          Start-Sleep -Seconds 5
-
-      - name: Set fixed password (Cyh65432)
-        run: |
-          $anydesk = "$env:TEMP\AnyDesk.exe"
-          # 通过标准输入设置密码
-          echo "Cyh65432" | & $anydesk --set-password
-          Write-Host "Unattended password set to Cyh65432"
-
-      - name: Start AnyDesk service and client
-        run: |
-          # 确保服务已启动
-          Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
-          # 启动主界面（显示ID和状态）
-          $anydesk = "$env:TEMP\AnyDesk.exe"
-          Start-Process -FilePath $anydesk
-          Write-Host "AnyDesk client started"
-          Start-Sleep -Seconds 15
+          Start-Process -FilePath "$env:TEMP\AnyDesk.exe"
+          Write-Host "AnyDesk started. Waiting 60 seconds for ID and password..."
+          Start-Sleep -Seconds 60
 
       - name: Install screenshot tools
         run: pip install pyautogui pillow
@@ -59,9 +40,8 @@ jobs:
       - name: Keep runner alive forever
         run: |
           Write-Host "========================================"
-          Write-Host "AnyDesk portable with service installed."
-          Write-Host "Password: Cyh65432"
-          Write-Host "Download screenshot from Artifacts to see the 9-digit ID."
-          Write-Host "Workflow will run until manually cancelled."
+          Write-Host "AnyDesk is running with a one‑time password."
+          Write-Host "Download the artifact 'anydesk-screenshot' to see the 9‑digit ID and the 6‑digit password."
+          Write-Host "Workflow will run until you cancel it manually."
           Write-Host "========================================"
           while ($true) { Start-Sleep -Seconds 60 }
